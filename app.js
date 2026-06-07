@@ -37,8 +37,8 @@ const W = 800;
 const ARENA = { x: 400, y: 400, r: 350 };
 const BOSS = { x: 400, y: 400, r: 29 };
 const TOWERS = [
-  { x: 300, y: 550, r: 66, label: "塔1" },
-  { x: 500, y: 550, r: 66, label: "塔2" },
+  { x: 300, y: 505, r: 66, label: "塔1" },
+  { x: 500, y: 505, r: 66, label: "塔2" },
 ];
 const SPELL_RADII = {
   share: 87,
@@ -330,8 +330,8 @@ function assignmentFor(player, round) {
   if (player.group !== info.group) return null;
   const mark = markForRound(player, round);
   if (info.odd) {
-    if (mark === "fan") return { tower: 0, x: 260, y: 575, name: "塔1・外側" };
-    if (mark === "circle") return { tower: 1, x: 545, y: 595, name: "塔2・外側" };
+    if (mark === "fan") return { tower: 0, x: 260, y: 530, name: "塔1・外側" };
+    if (mark === "circle") return { tower: 1, x: 545, y: 550, name: "塔2・外側" };
     if (markSide(player, round) === 0) {
       const radius = TOWERS[0].r / 2;
       return {
@@ -352,31 +352,31 @@ function assignmentFor(player, round) {
   const side = markSide(player, round);
   if (mark === "fan") {
     return side === 0
-      ? { tower: 0, x: 325, y: 510, name: "塔1・内側扇" }
-      : { tower: 1, x: 475, y: 510, name: "塔2・内側扇" };
+      ? { tower: 0, x: 330, y: 460, name: "塔1・内側扇" }
+      : { tower: 1, x: 480, y: 460, name: "塔2・内側扇" };
   }
   return side === 0
-    ? { tower: 0, x: 250, y: 590, name: "塔1・外側円" }
-    : { tower: 1, x: 550, y: 590, name: "塔2・外側円" };
+    ? { tower: 0, x: 250, y: 545, name: "塔1・外側円" }
+    : { tower: 1, x: 550, y: 545, name: "塔2・外側円" };
 }
 
 function supportPosition(player, round) {
   const info = towerInfo(round);
   if (!info.odd) {
     const positions = {
-      tank: [330, 330],
-      healer: [245, 500],
-      melee: [470, 330],
-      ranged: [555, 500],
+      tank: [330, 285],
+      healer: [230, 455],
+      melee: [470, 285],
+      ranged: [570, 455],
     };
     const [x, y] = positions[player.role.category];
     return { x, y };
   }
   const positions = {
-    tank: [355, 495],
-    healer: [225, 600],
-    melee: [445, 495],
-    ranged: [525, 480],
+    tank: [355, 450],
+    healer: [225, 560],
+    melee: [445, 450],
+    ranged: [475, 440],
   };
   const [x, y] = positions[player.role.category];
   return { x, y };
