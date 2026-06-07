@@ -11,6 +11,7 @@
   --danger: #ff667a;
 }
 
+html { scrollbar-gutter: stable; }
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -49,6 +50,7 @@ h2 { font-size: clamp(24px, 4vw, 34px); }
   border-radius: 5px;
   background: rgba(255,255,255,0.025);
 }
+.status-strip > div:nth-child(2) { width: 230px; }
 .status-strip span, .assignment-grid span {
   display: block;
   color: var(--muted);
@@ -57,6 +59,7 @@ h2 { font-size: clamp(24px, 4vw, 34px); }
   letter-spacing: 0.14em;
 }
 .status-strip strong { display: block; margin-top: 3px; font-size: 15px; }
+#nextDisplay { min-height: 2.4em; line-height: 1.2; }
 .game-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
@@ -100,7 +103,13 @@ canvas { display: block; width: min(100%, 800px); height: auto; aspect-ratio: 1;
 .mark-badge.fan { background: #6449df; }
 .assignment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
 .assignment-grid > div { padding: 11px; background: rgba(255,255,255,0.035); border-radius: 4px; }
-.assignment-grid strong { display: block; margin-top: 4px; font-size: 13px; }
+.assignment-grid strong {
+  display: block;
+  min-height: 2.7em;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.35;
+}
 .card-heading { display: flex; align-items: center; justify-content: space-between; }
 .card-heading > span { color: var(--muted); font-size: 10px; font-weight: 700; }
 #timeline { list-style: none; padding: 0; margin: 10px 0 0; }
@@ -209,6 +218,8 @@ select { padding: 6px 8px; border: 1px solid #35425a; border-radius: 4px; backgr
   .topbar { align-items: flex-start; flex-direction: column; }
   .status-strip { width: 100%; }
   .status-strip > div { flex: 1; min-width: 0; padding: 8px; }
+  .status-strip > div:nth-child(2) { width: auto; }
+  #nextDisplay { min-height: 3.6em; }
   .game-layout { padding-top: 12px; }
   .side-panel { display: flex; }
   .role-buttons { grid-template-columns: repeat(2, 1fr); }

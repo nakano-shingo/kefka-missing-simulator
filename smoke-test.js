@@ -72,10 +72,53 @@ async function run() {
 
   await send("Runtime.enable");
   await send("Page.enable");
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1200,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
   await send("Page.navigate", {
     url: "http://127.0.0.1:4173/?autoplay=1&speed=20&role=MT",
   });
   await sleep(250);
+  const layoutResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const nextLabels = TIMELINE_ITEMS.slice(1).map(
+        ([at, label], index) => \`\${index ? 10 : at}s \${label}\`
+      );
+      const assignmentLabels = [
+        "1回目 塔1・外側",
+        "2回目 塔1・内側扇",
+        "3回目 塔2・左上頭割り",
+        "4回目 塔2・外側円",
+        "完了",
+      ];
+      const originalNext = UI.next.textContent;
+      const originalAssignment = UI.towerAssignment.textContent;
+      const gameTops = nextLabels.map((label) => {
+        UI.next.textContent = label;
+        return document.querySelector(".game-layout").getBoundingClientRect().top;
+      });
+      const assignmentHeights = assignmentLabels.map((label) => {
+        UI.towerAssignment.textContent = label;
+        return document.querySelector(".assignment-card").getBoundingClientRect().height;
+      });
+      UI.next.textContent = originalNext;
+      UI.towerAssignment.textContent = originalAssignment;
+      const spread = (values) => Math.max(...values) - Math.min(...values);
+      return {
+        ok: spread(gameTops) < 0.01 && spread(assignmentHeights) < 0.01,
+        gameTops,
+        assignmentHeights,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const layout = JSON.parse(layoutResult.result.value);
+  if (!layout.ok) {
+    throw new Error(`Layout shifts when progress text changes: ${JSON.stringify(layout)}`);
+  }
   const distributionResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {
       const countMarks = (players, round) => players.reduce((counts, player) => {
