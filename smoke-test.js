@@ -198,6 +198,43 @@ async function run() {
   if (!direction.ok) {
     throw new Error(`Invalid direction lock tolerance: ${JSON.stringify(direction)}`);
   }
+  const npcMovementResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const mover = { x: 0, y: 0 };
+      moveToward(mover, { x: 100, y: 0 }, 0.1);
+
+      const originalTime = state.time;
+      const originalResolvedTowers = state.resolvedTowers;
+      const originalResolvedLocks = state.resolvedLocks;
+      state.resolvedTowers = new Set([1, 2]);
+      state.resolvedLocks = new Set();
+      state.time = TOWER_TIMES[1] + 4.999;
+      const beforeCast = npcTarget(state.players[0]);
+      state.time = TOWER_TIMES[1] + 5;
+      state.resolvedLocks.add(2);
+      const atCastStart = npcTarget(state.players[0]);
+      const assignment = assignmentFor(state.players[0], 3) || supportPosition(state.players[0], 3);
+      const expectedTarget = wanderingTarget(state.players[0], assignment, TOWER_TIMES[2]);
+      state.time = originalTime;
+      state.resolvedTowers = originalResolvedTowers;
+      state.resolvedLocks = originalResolvedLocks;
+
+      return {
+        ok: Math.abs(mover.x - 17) < 0.001 && mover.y === 0 &&
+          distance(beforeCast, stackPositionFor(2)) < 1 &&
+          distance(atCastStart, expectedTarget) < 0.001,
+        mover,
+        beforeCast,
+        atCastStart,
+        expectedTarget,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const npcMovement = JSON.parse(npcMovementResult.result.value);
+  if (!npcMovement.ok) {
+    throw new Error(`Invalid NPC movement: ${JSON.stringify(npcMovement)}`);
+  }
   const pastFutureAoeResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {
       const original = state.players.map((player) => ({ x: player.x, y: player.y }));

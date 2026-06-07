@@ -44,6 +44,7 @@ const PAST_FUTURE_RADIUS = SPELL_RADII.circle;
 const DIRECTION_LOCK_DISTANCE = 100;
 const DIRECTION_LOCK_TOLERANCE = 82;
 const DIRECTION_LOCK_HALF_ANGLE = 15 * Math.PI / 180;
+const PLAYER_MOVE_SPEED = 100;
 const ROLES = [
   { id: "MT", pair: "ST", kind: "tank", category: "tank", color: "#3b8ded", icon: "assets/TankRole.png" },
   { id: "ST", pair: "MT", kind: "tank", category: "tank", color: "#3b8ded", icon: "assets/TankRole.png" },
@@ -338,11 +339,11 @@ function npcTarget(player) {
   const info = towerInfo(round);
   for (const sourceRound of [2, 4, 6, 8]) {
     const base = TOWER_TIMES[sourceRound - 1];
-    if (state.time >= base + 3.2 && state.time < base + 7.8) {
+    if (state.resolvedTowers.has(sourceRound) && !state.resolvedLocks.has(sourceRound)) {
       const stack = stackPositionFor(sourceRound);
       return wanderingTarget(player, stack, base + 4.15);
     }
-    if (sourceRound === 8 && state.time >= base + 7.8 && state.time < base + 10.6) {
+    if (sourceRound === 8 && state.time >= base + 5 && state.time < base + 10.6) {
       return { x: BOSS.x, y: BOSS.y + 120 };
     }
   }
@@ -352,18 +353,20 @@ function npcTarget(player) {
   return wanderingTarget(player, destination, info.time);
 }
 
+function moveToward(player, target, dt) {
+  const tx = target.x - player.x;
+  const ty = target.y - player.y;
+  const distance = Math.hypot(tx, ty);
+  if (distance <= 1) return;
+  const step = Math.min(distance, PLAYER_MOVE_SPEED * dt);
+  player.x += (tx / distance) * step;
+  player.y += (ty / distance) * step;
+}
+
 function movePlayers(dt) {
   const player = getPlayer();
   if (autoplay) {
-    const target = npcTarget(player);
-    const tx = target.x - player.x;
-    const ty = target.y - player.y;
-    const distance = Math.hypot(tx, ty);
-    if (distance > 1) {
-      const step = Math.min(distance, 250 * dt);
-      player.x += (tx / distance) * step;
-      player.y += (ty / distance) * step;
-    }
+    moveToward(player, npcTarget(player), dt);
   }
   const sprint = keys.has("Shift") ? 1.55 : 1;
   let dx = 0;
@@ -376,13 +379,13 @@ function movePlayers(dt) {
   if (!autoplay && (dx || dy)) {
     state.moveTarget = null;
     const length = Math.hypot(dx, dy);
-    player.x += (dx / length) * 170 * sprint * dt;
-    player.y += (dy / length) * 170 * sprint * dt;
+    player.x += (dx / length) * PLAYER_MOVE_SPEED * sprint * dt;
+    player.y += (dy / length) * PLAYER_MOVE_SPEED * sprint * dt;
   } else if (!autoplay && state.moveTarget) {
     const tx = state.moveTarget.x - player.x;
     const ty = state.moveTarget.y - player.y;
     const distance = Math.hypot(tx, ty);
-    const step = 170 * sprint * dt;
+    const step = PLAYER_MOVE_SPEED * sprint * dt;
     if (distance <= step) {
       player.x = state.moveTarget.x;
       player.y = state.moveTarget.y;
@@ -395,15 +398,7 @@ function movePlayers(dt) {
 
   for (const npc of state.players) {
     if (npc.id === state.playerId) continue;
-    const target = npcTarget(npc);
-    const tx = target.x - npc.x;
-    const ty = target.y - npc.y;
-    const distance = Math.hypot(tx, ty);
-    if (distance > 1) {
-      const step = Math.min(distance, 250 * dt);
-      npc.x += (tx / distance) * step;
-      npc.y += (ty / distance) * step;
-    }
+    moveToward(npc, npcTarget(npc), dt);
   }
 }
 
