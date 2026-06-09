@@ -193,7 +193,7 @@ async function run() {
         spellEffects: state.spellEffects,
         time: state.time,
       };
-      for (const spread of ["kt", "piren"]) {
+      for (const spread of ["kt", "ktdn", "piren"]) {
         for (let attempt = 0; attempt < 80; attempt += 1) {
           const strategy = attempt % 2 ? "yarn" : "lean";
           state.players = createPlayers(strategy);
@@ -247,13 +247,13 @@ async function run() {
       selectStrategy("yarn");
       const afterStrategy = UI.roleSelection.classList.contains("hidden");
       const spreadAfterStrategy = UI.spreadSelection.classList.contains("hidden");
-      selectSpread("piren");
+      selectSpread("ktdn");
       const afterSpread = UI.roleSelection.classList.contains("hidden");
       const pair = pairIdFor("MT", "yarn");
       return {
         ok: before && spreadBefore && afterStrategy && !spreadAfterStrategy && !afterSpread &&
-          selectedStrategy === "yarn" && selectedSpread === "piren" && pair === "H1" &&
-          UI.strategyName.textContent.includes("ヤーン式") && UI.strategyName.textContent.includes("ぴれん式"),
+          selectedStrategy === "yarn" && selectedSpread === "ktdn" && pair === "H1" &&
+          UI.strategyName.textContent.includes("ヤーン式") && UI.strategyName.textContent.includes("KTDN式"),
         before,
         spreadBefore,
         afterStrategy,
@@ -302,6 +302,56 @@ async function run() {
   const shareCount = JSON.parse(shareCountResult.result.value);
   if (!shareCount.ok) {
     throw new Error(`Invalid share count handling: ${JSON.stringify(shareCount)}`);
+  }
+  const ktdnInitialPairResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      const originalSpread = state.spread;
+      state.spread = "ktdn";
+      state.players = [
+        { id: "MT", group: "A", marks: { 1: "share" }, role: { category: "tank" }, flippedRounds: new Set() },
+        { id: "H1", group: "B", marks: { 4: "circle" }, role: { category: "healer" }, flippedRounds: new Set() },
+        { id: "D1", group: "A", marks: { 1: "share" }, role: { category: "melee" }, flippedRounds: new Set() },
+        { id: "D3", group: "B", marks: { 4: "fan" }, role: { category: "ranged" }, flippedRounds: new Set() },
+      ];
+      const mtTower = assignmentFor(state.players[0], 1, "ktdn")?.tower;
+      const d1Tower = assignmentFor(state.players[2], 1, "ktdn")?.tower;
+      state.players = originalPlayers;
+      state.spread = originalSpread;
+      return {
+        ok: mtTower === 1 && d1Tower === 0,
+        mtTower,
+        d1Tower,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnInitialPair = JSON.parse(ktdnInitialPairResult.result.value);
+  if (!ktdnInitialPair.ok) {
+    throw new Error(`Invalid KTDN opening pair handling: ${JSON.stringify(ktdnInitialPair)}`);
+  }
+  const ktdnFlipResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      state.players = [
+        { id: "A", group: "A", x: 300, y: 460, mark: "fan", marks: { 2: "fan", 3: "share" }, role: { category: "tank" }, flippedRounds: new Set() },
+        { id: "B", group: "A", x: 300, y: 560, mark: "fan", marks: { 2: "fan", 3: "circle" }, role: { category: "healer" }, flippedRounds: new Set() },
+      ];
+      recordKtdnTowerFlip([state.players], 2);
+      const flipped = state.players[1].flippedRounds.has(3);
+      const nextTower = assignmentFor(state.players[1], 3, "ktdn")?.tower;
+      state.players = originalPlayers;
+      return {
+        ok: flipped && nextTower === 0,
+        flipped,
+        nextTower,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnFlip = JSON.parse(ktdnFlipResult.result.value);
+  if (!ktdnFlip.ok) {
+    throw new Error(`Invalid KTDN south-side flip handling: ${JSON.stringify(ktdnFlip)}`);
   }
   const directionResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {
@@ -485,8 +535,8 @@ async function run() {
   await send("Page.navigate", { url: "http://127.0.0.1:4173/?speed=20" });
   await sleep(300);
   await send("Runtime.evaluate", {
-    expression: `selectStrategy("lean"); selectSpread("kt"); document.querySelector(".role-button").click()`,
-  });
+      expression: `selectStrategy("lean"); selectSpread("kt"); document.querySelector(".role-button").click()`,
+    });
   await sleep(1500);
   const failureResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify({

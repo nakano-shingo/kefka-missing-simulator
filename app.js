@@ -81,6 +81,10 @@ const SPREAD_METHODS = {
     name: "KT式",
     description: "既存の散開位置。奇数回は左右の塔へ寄せ、偶数回は内側扇と外側円で処理します。",
   },
+  ktdn: {
+    name: "KTDN式",
+    description: "近接を左、遠隔を右に寄せるKT派生。奇数回は塔の左右判断をロール優先で分けます。",
+  },
   piren: {
     name: "ぴれん式",
     description: "図を基準に、奇数回は塔周辺の縦配置、偶数回は左右対称の上下配置で処理します。",
@@ -101,7 +105,11 @@ const TIMELINE_ITEMS = [
   [90, "最後の半面 / 終了"],
 ];
 const MARK_LABEL = { share: "頭割り", fan: "扇", circle: "円" };
-const TOWER_PRIORITY = ["healer", "tank", "melee", "ranged"];
+const TOWER_PRIORITY_BY_SPREAD = {
+  kt: ["healer", "tank", "melee", "ranged"],
+  ktdn: ["melee", "healer", "tank", "ranged"],
+  piren: ["healer", "tank", "melee", "ranged"],
+};
 const keys = new Set();
 const query = new URLSearchParams(location.search);
 const querySpeed = Number(query.get("speed"));
@@ -198,6 +206,10 @@ function nextRoundFor(player, afterRound = 0) {
   return GROUP_ROUNDS[player.group].find((round) => round > afterRound) || null;
 }
 
+function openingMarkFor(player) {
+  return player.marks[GROUP_ROUNDS[player.group][0]];
+}
+
 function createPlayers(strategy = "lean") {
   const openingMarks = createOpeningMarks();
   const groupA = buildGroups(openingMarks, strategy);
@@ -221,6 +233,7 @@ function createPlayers(strategy = "lean") {
       markUpdatedAt: 0,
       wanderPhase: index * 1.73 + Math.random() * 0.8,
       tower: null,
+      flippedRounds: new Set(),
     };
   });
   for (const [group, rounds] of Object.entries(GROUP_ROUNDS)) {
@@ -356,24 +369,30 @@ function towerInfo(round) {
   return { round, group, odd: round % 2 === 1, time: TOWER_TIMES[round - 1] };
 }
 
-function markSide(player, round) {
-  const info = towerInfo(round);
-  const peers = state.players
-    .filter((member) => member.group === info.group && markForRound(member, round) === markForRound(player, round))
-    .sort((a, b) =>
-      TOWER_PRIORITY.indexOf(a.role.category) - TOWER_PRIORITY.indexOf(b.role.category)
-    );
-  return peers.indexOf(player);
+function ktdnInitialShareTower(player) {
+  const pair = YARN_PAIRS.find((ids) => ids.includes(player.id));
+  if (!pair) return null;
+  const partnerId = pair.find((id) => id !== player.id);
+  const partner = state.players.find((member) => member.id === partnerId);
+  const partnerMark = partner ? openingMarkFor(partner) : null;
+  if (partnerMark === "circle") return 1;
+  if (partnerMark === "fan") return 0;
+  return null;
 }
 
-function ktAssignmentFor(player, round) {
-  const info = towerInfo(round);
-  if (player.group !== info.group) return null;
-  const mark = markForRound(player, round);
-  if (info.odd) {
-    if (mark === "fan") return { tower: 0, x: 260, y: 530, name: "塔1・外側" };
-    if (mark === "circle") return { tower: 1, x: 545, y: 550, name: "塔2・外側" };
-    if (markSide(player, round) === 0) {
+function ktTowerAssignment(mark, odd, tower) {
+  if (odd) {
+    if (mark === "fan") {
+      return tower === 0
+        ? { tower: 0, x: 260, y: 530, name: "塔1・外側" }
+        : { tower: 1, x: 540, y: 530, name: "塔2・外側" };
+    }
+    if (mark === "circle") {
+      return tower === 0
+        ? { tower: 0, x: 255, y: 550, name: "塔1・外側" }
+        : { tower: 1, x: 545, y: 550, name: "塔2・外側" };
+    }
+    if (tower === 0) {
       const radius = TOWERS[0].r / 2;
       return {
         tower: 0,
@@ -390,43 +409,109 @@ function ktAssignmentFor(player, round) {
       name: "塔2・左上頭割り",
     };
   }
-  const side = markSide(player, round);
+
   if (mark === "fan") {
-    return side === 0
+    return tower === 0
       ? { tower: 0, x: 330, y: 460, name: "塔1・内側扇" }
       : { tower: 1, x: 475, y: 460, name: "塔2・内側扇" };
   }
-  return side === 0
+  return tower === 0
     ? { tower: 0, x: 285, y: 555, name: "塔1・外側円" }
     : { tower: 1, x: 515, y: 555, name: "塔2・外側円" };
 }
 
-function pirenAssignmentFor(player, round) {
-  const info = towerInfo(round);
-  if (player.group !== info.group) return null;
-  const mark = markForRound(player, round);
-  if (info.odd) {
-    if (mark === "fan") return { tower: 0, x: 300, y: 560, name: "塔1・左誘導扇" };
-    if (mark === "circle") return { tower: 1, x: 500, y: 560, name: "塔2・下円" };
-    return markSide(player, round) === 0
+function pirenTowerAssignment(mark, odd, tower) {
+  if (odd) {
+    if (mark === "fan") {
+      return tower === 0
+        ? { tower: 0, x: 300, y: 560, name: "塔1・左誘導扇" }
+        : { tower: 1, x: 500, y: 560, name: "塔2・右誘導扇" };
+    }
+    if (mark === "circle") {
+      return tower === 0
+        ? { tower: 0, x: 300, y: 560, name: "塔1・下円" }
+        : { tower: 1, x: 500, y: 560, name: "塔2・下円" };
+    }
+    return tower === 0
       ? { tower: 0, x: 300, y: 485, name: "塔1・縦頭割り" }
       : { tower: 1, x: 500, y: 450, name: "塔2・縦頭割り" };
   }
-  const side = markSide(player, round);
+
   if (mark === "fan") {
-    return side === 0
+    return tower === 0
       ? { tower: 0, x: 300, y: 450, name: "塔1・上扇" }
       : { tower: 1, x: 500, y: 450, name: "塔2・上扇" };
   }
-  return side === 0
+  return tower === 0
     ? { tower: 0, x: 300, y: 565, name: "塔1・下円" }
     : { tower: 1, x: 500, y: 565, name: "塔2・下円" };
 }
 
+function applyTowerFlip(player, round, tower) {
+  return player.flippedRounds?.has(round) ? 1 - tower : tower;
+}
+
+function recordKtdnTowerFlip(occupied, round) {
+  for (const towerMembers of occupied) {
+    if (towerMembers.length !== 2) continue;
+    if (towerMembers[0].mark !== towerMembers[1].mark) continue;
+    const south = towerMembers[0].y >= towerMembers[1].y ? towerMembers[0] : towerMembers[1];
+    const next = nextRoundFor(south, round);
+    if (next) south.flippedRounds.add(next);
+  }
+}
+
+function markSide(player, round, spread = state.spread || "kt") {
+  const info = towerInfo(round);
+  const priority = TOWER_PRIORITY_BY_SPREAD[spread] || TOWER_PRIORITY_BY_SPREAD.kt;
+  const peers = state.players
+    .filter((member) => member.group === info.group && markForRound(member, round) === markForRound(player, round))
+    .sort((a, b) =>
+      priority.indexOf(a.role.category) - priority.indexOf(b.role.category)
+    );
+  return peers.indexOf(player);
+}
+
+function ktAssignmentFor(player, round, spread = state.spread || "kt") {
+  const info = towerInfo(round);
+  if (player.group !== info.group) return null;
+  const mark = markForRound(player, round);
+  if (info.odd) {
+    if (mark === "share" && spread === "ktdn" && round === 1) {
+      const tower = ktdnInitialShareTower(player);
+      if (tower !== null) {
+        return ktTowerAssignment(mark, true, applyTowerFlip(player, round, tower));
+      }
+    }
+    const defaultTower = mark === "fan"
+      ? 0
+      : mark === "circle"
+        ? 1
+        : markSide(player, round, spread);
+    return ktTowerAssignment(mark, true, applyTowerFlip(player, round, defaultTower));
+  }
+  const tower = applyTowerFlip(player, round, markSide(player, round, spread));
+  return ktTowerAssignment(mark, false, tower);
+}
+
+function pirenAssignmentFor(player, round, spread = state.spread || "kt") {
+  const info = towerInfo(round);
+  if (player.group !== info.group) return null;
+  const mark = markForRound(player, round);
+  if (info.odd) {
+    const defaultTower = mark === "fan"
+      ? 0
+      : mark === "circle"
+        ? 1
+        : markSide(player, round, spread);
+    return pirenTowerAssignment(mark, true, applyTowerFlip(player, round, defaultTower));
+  }
+  return pirenTowerAssignment(mark, false, applyTowerFlip(player, round, markSide(player, round, spread)));
+}
+
 function assignmentFor(player, round, spread = state.spread || "kt") {
-  return spread === "piren"
-    ? pirenAssignmentFor(player, round)
-    : ktAssignmentFor(player, round);
+  if (spread === "piren") return pirenAssignmentFor(player, round, spread);
+  return ktAssignmentFor(player, round, spread);
 }
 
 function supportPosition(player, round, spread = state.spread || "kt") {
@@ -637,6 +722,7 @@ function resolveTower(round) {
     fail(`${round}回目：${hazardFailure}`);
     return;
   }
+  if (state.spread === "ktdn" && round >= 2) recordKtdnTowerFlip(occupied, round);
   for (const member of active) {
     member.stacks -= 1;
     member.lastSoaked = round;
