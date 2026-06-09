@@ -330,28 +330,178 @@ async function run() {
   if (!ktdnInitialPair.ok) {
     throw new Error(`Invalid KTDN opening pair handling: ${JSON.stringify(ktdnInitialPair)}`);
   }
-  const ktdnFlipResult = await send("Runtime.evaluate", {
+  const ktdnPriorityResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {
       const originalPlayers = state.players;
+      const originalSpread = state.spread;
+      state.spread = "ktdn";
       state.players = [
-        { id: "A", group: "A", x: 300, y: 460, mark: "fan", marks: { 2: "fan", 3: "share" }, role: { category: "tank" }, flippedRounds: new Set() },
-        { id: "B", group: "A", x: 300, y: 560, mark: "fan", marks: { 2: "fan", 3: "circle" }, role: { category: "healer" }, flippedRounds: new Set() },
+        { id: "D1", group: "A", x: 300, y: 500, mark: "share", marks: { 1: "share", 2: "fan" }, role: { category: "melee" }, towerOverrides: new Map() },
+        { id: "MT", group: "A", x: 500, y: 500, mark: "share", marks: { 1: "share", 2: "circle" }, role: { category: "tank" }, towerOverrides: new Map() },
+        { id: "ST", group: "A", x: 500, y: 520, mark: "circle", marks: { 1: "circle", 2: "fan" }, role: { category: "tank" }, towerOverrides: new Map() },
+        { id: "H1", group: "A", x: 300, y: 520, mark: "fan", marks: { 1: "fan", 2: "circle" }, role: { category: "healer" }, towerOverrides: new Map() },
       ];
-      recordKtdnTowerFlip([state.players], 2);
-      const flipped = state.players[1].flippedRounds.has(3);
-      const nextTower = assignmentFor(state.players[1], 3, "ktdn")?.tower;
+      recordKtdnTowerPriority([
+        [state.players[0], state.players[3]],
+        [state.players[1], state.players[2]],
+      ], 1);
+      const d1Tower = assignmentFor(state.players[0], 2, "ktdn")?.tower;
+      const stTower = assignmentFor(state.players[2], 2, "ktdn")?.tower;
       state.players = originalPlayers;
+      state.spread = originalSpread;
       return {
-        ok: flipped && nextTower === 0,
-        flipped,
-        nextTower,
+        ok: d1Tower === 0 && stTower === 1,
+        d1Tower,
+        stTower,
       };
     })())`,
     returnByValue: true,
   });
-  const ktdnFlip = JSON.parse(ktdnFlipResult.result.value);
-  if (!ktdnFlip.ok) {
-    throw new Error(`Invalid KTDN south-side flip handling: ${JSON.stringify(ktdnFlip)}`);
+  const ktdnPriority = JSON.parse(ktdnPriorityResult.result.value);
+  if (!ktdnPriority.ok) {
+    throw new Error(`Invalid KTDN odd-to-even tower carry handling: ${JSON.stringify(ktdnPriority)}`);
+  }
+  const ktdnRound5To6Result = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      const originalSpread = state.spread;
+      state.spread = "ktdn";
+      state.players = [
+        { id: "D3", group: "B", x: 300, y: 500, mark: "share", marks: { 5: "share", 6: "fan" }, role: { category: "ranged" }, towerOverrides: new Map() },
+        { id: "H2", group: "B", x: 500, y: 500, mark: "share", marks: { 5: "share", 6: "circle" }, role: { category: "healer" }, towerOverrides: new Map() },
+        { id: "ST", group: "B", x: 500, y: 520, mark: "circle", marks: { 5: "circle", 6: "fan" }, role: { category: "tank" }, towerOverrides: new Map() },
+        { id: "D2", group: "B", x: 300, y: 520, mark: "fan", marks: { 5: "fan", 6: "circle" }, role: { category: "melee" }, towerOverrides: new Map() },
+      ];
+      recordKtdnTowerPriority([
+        [state.players[0], state.players[3]],
+        [state.players[1], state.players[2]],
+      ], 5);
+      const d3Tower = assignmentFor(state.players[0], 6, "ktdn")?.tower;
+      const stTower = assignmentFor(state.players[2], 6, "ktdn")?.tower;
+      state.players = originalPlayers;
+      state.spread = originalSpread;
+      return {
+        ok: d3Tower === 0 && stTower === 1,
+        d3Tower,
+        stTower,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnRound5To6 = JSON.parse(ktdnRound5To6Result.result.value);
+  if (!ktdnRound5To6.ok) {
+    throw new Error(`Invalid KTDN round 5 to 6 tower carry handling: ${JSON.stringify(ktdnRound5To6)}`);
+  }
+  const ktdnEvenToOddPriorityResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      state.players = [
+        { id: "MT", group: "A", x: 300, y: 460, mark: "fan", marks: { 2: "fan", 3: "share" }, role: { category: "tank" }, towerOverrides: new Map() },
+        { id: "H1", group: "A", x: 300, y: 560, mark: "fan", marks: { 2: "fan", 3: "share" }, role: { category: "healer" }, towerOverrides: new Map() },
+      ];
+      recordKtdnTowerPriority([state.players], 2);
+      const mtTower = assignmentFor(state.players[0], 3, "ktdn")?.tower;
+      const h1Tower = assignmentFor(state.players[1], 3, "ktdn")?.tower;
+      state.players = originalPlayers;
+      return {
+        ok: h1Tower === 0 && mtTower === 1,
+        mtTower,
+        h1Tower,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnEvenToOddPriority = JSON.parse(ktdnEvenToOddPriorityResult.result.value);
+  if (!ktdnEvenToOddPriority.ok) {
+    throw new Error(`Invalid KTDN even-to-odd ranged-left priority handling: ${JSON.stringify(ktdnEvenToOddPriority)}`);
+  }
+  const ktdnRound7IgnoreResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      state.players = [
+        { id: "MT", group: "B", x: 300, y: 460, mark: "fan", marks: { 7: "fan", 8: "share" }, role: { category: "tank" }, towerOverrides: new Map() },
+        { id: "H1", group: "B", x: 300, y: 560, mark: "fan", marks: { 7: "fan", 8: "share" }, role: { category: "healer" }, towerOverrides: new Map() },
+      ];
+      recordKtdnTowerPriority([state.players], 7);
+      const hasOverride = state.players.some((player) => player.towerOverrides.has(8));
+      state.players = originalPlayers;
+      return {
+        ok: !hasOverride,
+        hasOverride,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnRound7Ignore = JSON.parse(ktdnRound7IgnoreResult.result.value);
+  if (!ktdnRound7Ignore.ok) {
+    throw new Error(`Invalid KTDN round 7 exclusion handling: ${JSON.stringify(ktdnRound7Ignore)}`);
+  }
+  const oddSupportPriorityResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const verifySpread = (spread) => {
+        const round = 1;
+        const tank = supportPosition({ role: { category: "tank" } }, round, spread);
+        const healer = supportPosition({ role: { category: "healer" } }, round, spread);
+        const melee = supportPosition({ role: { category: "melee" } }, round, spread);
+        const ranged = supportPosition({ role: { category: "ranged" } }, round, spread);
+        const dpsOnRight = melee.x > tank.x && ranged.x > tank.x;
+        const healerBehindTank = healer.y > tank.y;
+        const healerOnLeft = healer.x < melee.x && healer.x < ranged.x;
+        return {
+          ok: dpsOnRight && healerBehindTank && healerOnLeft,
+          tank,
+          healer,
+          melee,
+          ranged,
+        };
+      };
+      const spreads = ["kt", "ktdn", "piren"];
+      const results = Object.fromEntries(spreads.map((spread) => [spread, verifySpread(spread)]));
+      return {
+        ok: spreads.every((spread) => results[spread].ok),
+        results,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const oddSupportPriority = JSON.parse(oddSupportPriorityResult.result.value);
+  if (!oddSupportPriority.ok) {
+    throw new Error(`Invalid odd-round support priority: ${JSON.stringify(oddSupportPriority)}`);
+  }
+  const round8TargetMarkerResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      const originalSpread = state.spread;
+      const originalResolvedTowers = state.resolvedTowers;
+      state.spread = "ktdn";
+      state.resolvedTowers = new Set([1, 2, 3]);
+      state.players = [
+        { id: "L1", group: "A", marks: { 8: "circle" }, role: { category: "tank" }, towerOverrides: new Map([[8, 0]]) },
+        { id: "L2", group: "A", marks: { 8: "fan" }, role: { category: "healer" }, towerOverrides: new Map([[8, 0]]) },
+        { id: "R1", group: "A", marks: { 8: "circle" }, role: { category: "melee" }, towerOverrides: new Map([[8, 1]]) },
+        { id: "R2", group: "A", marks: { 8: "fan" }, role: { category: "ranged" }, towerOverrides: new Map([[8, 1]]) },
+      ];
+      const leftCircle = targetMarkerFor(state.players[0])?.type;
+      const leftFan = targetMarkerFor(state.players[1])?.type;
+      const rightCircle = targetMarkerFor(state.players[2])?.type;
+      const rightFan = targetMarkerFor(state.players[3])?.type;
+      state.players = originalPlayers;
+      state.spread = originalSpread;
+      state.resolvedTowers = originalResolvedTowers;
+      return {
+        ok: leftCircle === "stop1" && leftFan === "bind1" &&
+          rightCircle === "stop2" && rightFan === "bind2",
+        leftCircle,
+        leftFan,
+        rightCircle,
+        rightFan,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const round8TargetMarker = JSON.parse(round8TargetMarkerResult.result.value);
+  if (!round8TargetMarker.ok) {
+    throw new Error(`Invalid round 8 target marker handling: ${JSON.stringify(round8TargetMarker)}`);
   }
   const directionResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {

@@ -83,7 +83,7 @@ const SPREAD_METHODS = {
   },
   ktdn: {
     name: "KTDN式",
-    description: "近接を左、遠隔を右に寄せるKT派生。奇数回は塔の左右判断をロール優先で分けます。",
+    description: "遠隔左・近接右基準。前の塔を引き継いで処理し、同塔同予兆は南が移動します。",
   },
   piren: {
     name: "ぴれん式",
@@ -105,6 +105,12 @@ const TIMELINE_ITEMS = [
   [90, "最後の半面 / 終了"],
 ];
 const MARK_LABEL = { share: "頭割り", fan: "扇", circle: "円" };
+const TARGET_MARKER_LABEL = {
+  stop1: "ストップ1",
+  stop2: "ストップ2",
+  bind1: "バインド1",
+  bind2: "バインド2",
+};
 const TOWER_PRIORITY_BY_SPREAD = {
   kt: ["healer", "tank", "melee", "ranged"],
   ktdn: ["melee", "healer", "tank", "ranged"],
@@ -233,7 +239,7 @@ function createPlayers(strategy = "lean") {
       markUpdatedAt: 0,
       wanderPhase: index * 1.73 + Math.random() * 0.8,
       tower: null,
-      flippedRounds: new Set(),
+      towerOverrides: new Map(),
     };
   });
   for (const [group, rounds] of Object.entries(GROUP_ROUNDS)) {
@@ -447,17 +453,48 @@ function pirenTowerAssignment(mark, odd, tower) {
     : { tower: 1, x: 500, y: 565, name: "塔2・下円" };
 }
 
-function applyTowerFlip(player, round, tower) {
-  return player.flippedRounds?.has(round) ? 1 - tower : tower;
+function applyTowerOverride(player, round, tower) {
+  return player.towerOverrides?.has(round) ? player.towerOverrides.get(round) : tower;
 }
 
-function recordKtdnTowerFlip(occupied, round) {
+function towerPriorityBucket(player) {
+  return ["H1", "H2", "D3", "D4"].includes(player.id) ? 0 : 1;
+}
+
+function recordKtdnTowerPriority(occupied, round) {
+  const info = towerInfo(round);
+  const active = state.players.filter((member) => member.group === info.group);
+  const next = nextRoundFor(active[0], round);
+  if (!next) return;
+
+  if (next % 2 === 0) {
+    const towerById = new Map();
+    occupied.forEach((towerMembers, towerIndex) => {
+      for (const member of towerMembers) towerById.set(member.id, towerIndex);
+    });
+    for (const mark of ["fan", "circle"]) {
+      const members = active.filter((member) => markForRound(member, next) === mark);
+      if (members.length < 2) continue;
+      for (const member of members) {
+        const tower = towerById.get(member.id);
+        if (tower !== undefined) member.towerOverrides.set(next, tower);
+      }
+    }
+    return;
+  }
+
+  if (round >= 7) return;
   for (const towerMembers of occupied) {
     if (towerMembers.length !== 2) continue;
     if (towerMembers[0].mark !== towerMembers[1].mark) continue;
-    const south = towerMembers[0].y >= towerMembers[1].y ? towerMembers[0] : towerMembers[1];
-    const next = nextRoundFor(south, round);
-    if (next) south.flippedRounds.add(next);
+    const ordered = [...towerMembers].sort((a, b) => {
+      const bucketDiff = towerPriorityBucket(a) - towerPriorityBucket(b);
+      if (bucketDiff !== 0) return bucketDiff;
+      if (a.y !== b.y) return a.y - b.y;
+      return a.id.localeCompare(b.id);
+    });
+    ordered[0].towerOverrides.set(next, 0);
+    ordered[1].towerOverrides.set(next, 1);
   }
 }
 
@@ -480,7 +517,7 @@ function ktAssignmentFor(player, round, spread = state.spread || "kt") {
     if (mark === "share" && spread === "ktdn" && round === 1) {
       const tower = ktdnInitialShareTower(player);
       if (tower !== null) {
-        return ktTowerAssignment(mark, true, applyTowerFlip(player, round, tower));
+        return ktTowerAssignment(mark, true, applyTowerOverride(player, round, tower));
       }
     }
     const defaultTower = mark === "fan"
@@ -488,9 +525,9 @@ function ktAssignmentFor(player, round, spread = state.spread || "kt") {
       : mark === "circle"
         ? 1
         : markSide(player, round, spread);
-    return ktTowerAssignment(mark, true, applyTowerFlip(player, round, defaultTower));
+    return ktTowerAssignment(mark, true, applyTowerOverride(player, round, defaultTower));
   }
-  const tower = applyTowerFlip(player, round, markSide(player, round, spread));
+  const tower = applyTowerOverride(player, round, markSide(player, round, spread));
   return ktTowerAssignment(mark, false, tower);
 }
 
@@ -504,14 +541,35 @@ function pirenAssignmentFor(player, round, spread = state.spread || "kt") {
       : mark === "circle"
         ? 1
         : markSide(player, round, spread);
-    return pirenTowerAssignment(mark, true, applyTowerFlip(player, round, defaultTower));
+    return pirenTowerAssignment(mark, true, applyTowerOverride(player, round, defaultTower));
   }
-  return pirenTowerAssignment(mark, false, applyTowerFlip(player, round, markSide(player, round, spread)));
+  return pirenTowerAssignment(mark, false, applyTowerOverride(player, round, markSide(player, round, spread)));
 }
 
 function assignmentFor(player, round, spread = state.spread || "kt") {
   if (spread === "piren") return pirenAssignmentFor(player, round, spread);
   return ktAssignmentFor(player, round, spread);
+}
+
+function targetMarkerFor(player) {
+  if (!state.resolvedTowers.has(3) || state.resolvedTowers.has(8)) return null;
+  if (player.group !== "A") return null;
+  const assignment = assignmentFor(player, 8);
+  if (!assignment) return null;
+  const mark = markForRound(player, 8);
+  if (mark === "circle") {
+    return {
+      type: assignment.tower === 0 ? "stop1" : "stop2",
+      label: TARGET_MARKER_LABEL[assignment.tower === 0 ? "stop1" : "stop2"],
+    };
+  }
+  if (mark === "fan") {
+    return {
+      type: assignment.tower === 0 ? "bind1" : "bind2",
+      label: TARGET_MARKER_LABEL[assignment.tower === 0 ? "bind1" : "bind2"],
+    };
+  }
+  return null;
 }
 
 function supportPosition(player, round, spread = state.spread || "kt") {
@@ -722,7 +780,7 @@ function resolveTower(round) {
     fail(`${round}回目：${hazardFailure}`);
     return;
   }
-  if (state.spread === "ktdn" && round >= 2) recordKtdnTowerFlip(occupied, round);
+  if (state.spread === "ktdn") recordKtdnTowerPriority(occupied, round);
   for (const member of active) {
     member.stacks -= 1;
     member.lastSoaked = round;
@@ -1209,8 +1267,58 @@ function drawMark(player) {
   ctx.restore();
 }
 
+function drawTargetMarker(player) {
+  const marker = targetMarkerFor(player);
+  if (!marker) return;
+
+  const y = player.y - 62;
+  ctx.save();
+  ctx.translate(player.x, y);
+  ctx.lineWidth = 3;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  if (marker.type.startsWith("stop")) {
+    ctx.strokeStyle = "#ff6f8b";
+    ctx.shadowColor = "rgba(255, 111, 139, 0.6)";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(0, 0, 17, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-11, 11);
+    ctx.lineTo(11, -11);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#fff4f8";
+    ctx.font = "900 13px sans-serif";
+    ctx.fillText(marker.type.endsWith("1") ? "1" : "2", -12, -13);
+  } else {
+    ctx.strokeStyle = "#f0d8ff";
+    ctx.shadowColor = "rgba(215, 168, 255, 0.7)";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(-4, -18);
+    ctx.bezierCurveTo(12, -18, 18, -2, 8, 10);
+    ctx.bezierCurveTo(2, 18, -7, 15, -8, 6);
+    ctx.bezierCurveTo(-9, -3, -1, -7, 7, -7);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(8, 10);
+    ctx.lineTo(8, 18);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#fff7ff";
+    ctx.font = "900 13px sans-serif";
+    ctx.fillText(marker.type.endsWith("1") ? "1" : "2", 13, -11);
+  }
+
+  ctx.restore();
+}
+
 function drawPlayers() {
   for (const player of state.players) {
+    drawTargetMarker(player);
     drawMark(player);
     const controlled = player.id === state.playerId;
     ctx.save();
