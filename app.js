@@ -83,7 +83,7 @@ const SPREAD_METHODS = {
   },
   ktdn: {
     name: "KTDN式",
-    description: "遠隔左・近接右基準。前の塔を引き継いで処理し、同塔同予兆は南が移動します。",
+    description: "初回はペア相手で塔を判断し、4回目の円扇判断だけ遠隔左・近接右を使います。以降は前の塔基準で、8回目は右が1番・左が2番です。",
   },
   piren: {
     name: "ぴれん式",
@@ -113,7 +113,7 @@ const TARGET_MARKER_LABEL = {
 };
 const TOWER_PRIORITY_BY_SPREAD = {
   kt: ["healer", "tank", "melee", "ranged"],
-  ktdn: ["melee", "healer", "tank", "ranged"],
+  ktdn: ["healer", "tank", "melee", "ranged"],
   piren: ["healer", "tank", "melee", "ranged"],
 };
 const keys = new Set();
@@ -461,6 +461,10 @@ function towerPriorityBucket(player) {
   return ["H1", "H2", "D3", "D4"].includes(player.id) ? 0 : 1;
 }
 
+function ktdnRound4Priority(player) {
+  return ["healer", "ranged", "tank", "melee"].indexOf(player.role.category);
+}
+
 function recordKtdnTowerPriority(occupied, round) {
   const info = towerInfo(round);
   const active = state.players.filter((member) => member.group === info.group);
@@ -487,25 +491,43 @@ function recordKtdnTowerPriority(occupied, round) {
   for (const towerMembers of occupied) {
     if (towerMembers.length !== 2) continue;
     if (towerMembers[0].mark !== towerMembers[1].mark) continue;
+    if (GROUP_ROUNDS.B.includes(next)) {
+      const ordered = [...towerMembers].sort((a, b) => {
+        const bucketDiff = towerPriorityBucket(a) - towerPriorityBucket(b);
+        if (bucketDiff !== 0) return bucketDiff;
+        if (a.y !== b.y) return a.y - b.y;
+        return a.id.localeCompare(b.id);
+      });
+      ordered[0].towerOverrides.set(next, 0);
+      ordered[1].towerOverrides.set(next, 1);
+      continue;
+    }
+
     const ordered = [...towerMembers].sort((a, b) => {
-      const bucketDiff = towerPriorityBucket(a) - towerPriorityBucket(b);
-      if (bucketDiff !== 0) return bucketDiff;
       if (a.y !== b.y) return a.y - b.y;
       return a.id.localeCompare(b.id);
     });
-    ordered[0].towerOverrides.set(next, 0);
-    ordered[1].towerOverrides.set(next, 1);
+    const currentTower = occupied.indexOf(towerMembers);
+    ordered[0].towerOverrides.set(next, currentTower);
+    ordered[1].towerOverrides.set(next, 1 - currentTower);
   }
 }
 
 function markSide(player, round, spread = state.spread || "kt") {
   const info = towerInfo(round);
-  const priority = TOWER_PRIORITY_BY_SPREAD[spread] || TOWER_PRIORITY_BY_SPREAD.kt;
   const peers = state.players
     .filter((member) => member.group === info.group && markForRound(member, round) === markForRound(player, round))
-    .sort((a, b) =>
-      priority.indexOf(a.role.category) - priority.indexOf(b.role.category)
-    );
+    .sort((a, b) => {
+      if (spread === "ktdn" && round === 4 && info.group === "B") {
+        const bucketDiff = ktdnRound4Priority(a) - ktdnRound4Priority(b);
+        if (bucketDiff !== 0) return bucketDiff;
+      } else {
+        const priority = TOWER_PRIORITY_BY_SPREAD[spread] || TOWER_PRIORITY_BY_SPREAD.kt;
+        const bucketDiff = priority.indexOf(a.role.category) - priority.indexOf(b.role.category);
+        if (bucketDiff !== 0) return bucketDiff;
+      }
+      return a.id.localeCompare(b.id);
+    });
   return peers.indexOf(player);
 }
 
@@ -559,14 +581,14 @@ function targetMarkerFor(player) {
   const mark = markForRound(player, 8);
   if (mark === "circle") {
     return {
-      type: assignment.tower === 0 ? "stop1" : "stop2",
-      label: TARGET_MARKER_LABEL[assignment.tower === 0 ? "stop1" : "stop2"],
+      type: assignment.tower === 1 ? "stop1" : "stop2",
+      label: TARGET_MARKER_LABEL[assignment.tower === 1 ? "stop1" : "stop2"],
     };
   }
   if (mark === "fan") {
     return {
-      type: assignment.tower === 0 ? "bind1" : "bind2",
-      label: TARGET_MARKER_LABEL[assignment.tower === 0 ? "bind1" : "bind2"],
+      type: assignment.tower === 1 ? "bind1" : "bind2",
+      label: TARGET_MARKER_LABEL[assignment.tower === 1 ? "bind1" : "bind2"],
     };
   }
   return null;

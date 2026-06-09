@@ -330,6 +330,31 @@ async function run() {
   if (!ktdnInitialPair.ok) {
     throw new Error(`Invalid KTDN opening pair handling: ${JSON.stringify(ktdnInitialPair)}`);
   }
+  const ktdnRound4InitialPriorityResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      const originalSpread = state.spread;
+      state.spread = "ktdn";
+      state.players = [
+        { id: "H2", group: "B", marks: { 4: "fan" }, role: { category: "healer" }, towerOverrides: new Map() },
+        { id: "D1", group: "B", marks: { 4: "fan" }, role: { category: "melee" }, towerOverrides: new Map() },
+      ];
+      const h2Tower = assignmentFor(state.players[0], 4, "ktdn")?.tower;
+      const d1Tower = assignmentFor(state.players[1], 4, "ktdn")?.tower;
+      state.players = originalPlayers;
+      state.spread = originalSpread;
+      return {
+        ok: h2Tower === 0 && d1Tower === 1,
+        h2Tower,
+        d1Tower,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnRound4InitialPriority = JSON.parse(ktdnRound4InitialPriorityResult.result.value);
+  if (!ktdnRound4InitialPriority.ok) {
+    throw new Error(`Invalid KTDN round 4 initial ranged-left priority: ${JSON.stringify(ktdnRound4InitialPriority)}`);
+  }
   const ktdnPriorityResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {
       const originalPlayers = state.players;
@@ -392,6 +417,37 @@ async function run() {
   if (!ktdnRound5To6.ok) {
     throw new Error(`Invalid KTDN round 5 to 6 tower carry handling: ${JSON.stringify(ktdnRound5To6)}`);
   }
+  const ktdnD2H1FanCarryResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      const originalSpread = state.spread;
+      state.spread = "ktdn";
+      state.players = [
+        { id: "D2", group: "A", x: 300, y: 530, mark: "fan", marks: { 1: "fan", 2: "fan" }, role: { category: "melee" }, towerOverrides: new Map() },
+        { id: "H1", group: "A", x: 500, y: 505, mark: "share", marks: { 1: "share", 2: "fan" }, role: { category: "healer" }, towerOverrides: new Map() },
+        { id: "MT", group: "A", x: 500, y: 450, mark: "share", marks: { 1: "share", 2: "circle" }, role: { category: "tank" }, towerOverrides: new Map() },
+        { id: "D4", group: "A", x: 545, y: 550, mark: "circle", marks: { 1: "circle", 2: "circle" }, role: { category: "ranged" }, towerOverrides: new Map() },
+      ];
+      recordKtdnTowerPriority([
+        [state.players[0]],
+        [state.players[1], state.players[2], state.players[3]],
+      ], 1);
+      const d2Tower = assignmentFor(state.players[0], 2, "ktdn")?.tower;
+      const h1Tower = assignmentFor(state.players[1], 2, "ktdn")?.tower;
+      state.players = originalPlayers;
+      state.spread = originalSpread;
+      return {
+        ok: d2Tower === 0 && h1Tower === 1,
+        d2Tower,
+        h1Tower,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnD2H1FanCarry = JSON.parse(ktdnD2H1FanCarryResult.result.value);
+  if (!ktdnD2H1FanCarry.ok) {
+    throw new Error(`Invalid KTDN D2/H1 fan carry handling: ${JSON.stringify(ktdnD2H1FanCarry)}`);
+  }
   const ktdnEvenToOddPriorityResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {
       const originalPlayers = state.players;
@@ -404,7 +460,7 @@ async function run() {
       const h1Tower = assignmentFor(state.players[1], 3, "ktdn")?.tower;
       state.players = originalPlayers;
       return {
-        ok: h1Tower === 0 && mtTower === 1,
+        ok: mtTower === 0 && h1Tower === 1,
         mtTower,
         h1Tower,
       };
@@ -413,7 +469,30 @@ async function run() {
   });
   const ktdnEvenToOddPriority = JSON.parse(ktdnEvenToOddPriorityResult.result.value);
   if (!ktdnEvenToOddPriority.ok) {
-    throw new Error(`Invalid KTDN even-to-odd ranged-left priority handling: ${JSON.stringify(ktdnEvenToOddPriority)}`);
+    throw new Error(`Invalid KTDN even-to-odd south-move handling: ${JSON.stringify(ktdnEvenToOddPriority)}`);
+  }
+  const ktdnGroupBEvenToOddPriorityResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      state.players = [
+        { id: "MT", group: "B", x: 300, y: 460, mark: "fan", marks: { 4: "fan", 5: "share" }, role: { category: "tank" }, towerOverrides: new Map() },
+        { id: "H1", group: "B", x: 300, y: 560, mark: "fan", marks: { 4: "fan", 5: "share" }, role: { category: "healer" }, towerOverrides: new Map() },
+      ];
+      recordKtdnTowerPriority([state.players], 4);
+      const mtTower = assignmentFor(state.players[0], 5, "ktdn")?.tower;
+      const h1Tower = assignmentFor(state.players[1], 5, "ktdn")?.tower;
+      state.players = originalPlayers;
+      return {
+        ok: h1Tower === 0 && mtTower === 1,
+        mtTower,
+        h1Tower,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnGroupBEvenToOddPriority = JSON.parse(ktdnGroupBEvenToOddPriorityResult.result.value);
+  if (!ktdnGroupBEvenToOddPriority.ok) {
+    throw new Error(`Invalid KTDN group B even-to-odd ranged-left priority handling: ${JSON.stringify(ktdnGroupBEvenToOddPriority)}`);
   }
   const ktdnRound7IgnoreResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {
@@ -489,8 +568,8 @@ async function run() {
       state.spread = originalSpread;
       state.resolvedTowers = originalResolvedTowers;
       return {
-        ok: leftCircle === "stop1" && leftFan === "bind1" &&
-          rightCircle === "stop2" && rightFan === "bind2",
+        ok: leftCircle === "stop2" && leftFan === "bind2" &&
+          rightCircle === "stop1" && rightFan === "bind1",
         leftCircle,
         leftFan,
         rightCircle,
