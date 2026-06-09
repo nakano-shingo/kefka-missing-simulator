@@ -472,18 +472,22 @@ function recordKtdnTowerPriority(occupied, round) {
   if (!next) return;
 
   if (next % 2 === 0) {
-    const towerById = new Map();
     occupied.forEach((towerMembers, towerIndex) => {
-      for (const member of towerMembers) towerById.set(member.id, towerIndex);
-    });
-    for (const mark of ["fan", "circle"]) {
-      const members = active.filter((member) => markForRound(member, next) === mark);
-      if (members.length < 2) continue;
-      for (const member of members) {
-        const tower = towerById.get(member.id);
-        if (tower !== undefined) member.towerOverrides.set(next, tower);
+      for (const member of towerMembers) {
+        member.towerOverrides.set(next, towerIndex);
       }
-    }
+
+      if (towerMembers.length !== 2) return;
+      const [first, second] = towerMembers;
+      if (markForRound(first, next) !== markForRound(second, next)) return;
+
+      const ordered = [...towerMembers].sort((a, b) => {
+        if (a.y !== b.y) return a.y - b.y;
+        return a.id.localeCompare(b.id);
+      });
+      ordered[0].towerOverrides.set(next, towerIndex);
+      ordered[1].towerOverrides.set(next, 1 - towerIndex);
+    });
     return;
   }
 
