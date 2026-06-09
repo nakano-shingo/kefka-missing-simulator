@@ -83,7 +83,7 @@ const SPREAD_METHODS = {
   },
   ktdn: {
     name: "KTDN式",
-    description: "初回はペア相手で塔を判断し、4回目の円扇判断だけ遠隔左・近接右を使います。以降は前の塔基準で、8回目は右が1番・左が2番です。",
+    description: "初回はペア相手で塔を判断し、4回目の円扇判断だけ遠隔左・近接右を使います。以降は前の塔基準で、8回目は左が1番・右が2番です。",
   },
   piren: {
     name: "ぴれん式",
@@ -581,14 +581,14 @@ function targetMarkerFor(player) {
   const mark = markForRound(player, 8);
   if (mark === "circle") {
     return {
-      type: assignment.tower === 1 ? "stop1" : "stop2",
-      label: TARGET_MARKER_LABEL[assignment.tower === 1 ? "stop1" : "stop2"],
+      type: assignment.tower === 0 ? "stop1" : "stop2",
+      label: TARGET_MARKER_LABEL[assignment.tower === 0 ? "stop1" : "stop2"],
     };
   }
   if (mark === "fan") {
     return {
-      type: assignment.tower === 1 ? "bind1" : "bind2",
-      label: TARGET_MARKER_LABEL[assignment.tower === 1 ? "bind1" : "bind2"],
+      type: assignment.tower === 0 ? "bind1" : "bind2",
+      label: TARGET_MARKER_LABEL[assignment.tower === 0 ? "bind1" : "bind2"],
     };
   }
   return null;

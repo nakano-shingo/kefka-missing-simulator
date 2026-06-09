@@ -568,8 +568,8 @@ async function run() {
       state.spread = originalSpread;
       state.resolvedTowers = originalResolvedTowers;
       return {
-        ok: leftCircle === "stop2" && leftFan === "bind2" &&
-          rightCircle === "stop1" && rightFan === "bind1",
+        ok: leftCircle === "stop1" && leftFan === "bind1" &&
+          rightCircle === "stop2" && rightFan === "bind2",
         leftCircle,
         leftFan,
         rightCircle,
