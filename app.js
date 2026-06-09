@@ -493,8 +493,15 @@ function recordKtdnTowerPriority(occupied, round) {
 
   if (round >= 7) return;
   for (const towerMembers of occupied) {
+    const currentTower = occupied.indexOf(towerMembers);
+    for (const member of towerMembers) {
+      if (markForRound(member, next) === "share") {
+        member.towerOverrides.set(next, currentTower);
+      }
+    }
+
     if (towerMembers.length !== 2) continue;
-    if (towerMembers[0].mark !== towerMembers[1].mark) continue;
+    if (markForRound(towerMembers[0], next) !== markForRound(towerMembers[1], next)) continue;
     if (GROUP_ROUNDS.B.includes(next)) {
       const ordered = [...towerMembers].sort((a, b) => {
         const bucketDiff = towerPriorityBucket(a) - towerPriorityBucket(b);
@@ -511,7 +518,6 @@ function recordKtdnTowerPriority(occupied, round) {
       if (a.y !== b.y) return a.y - b.y;
       return a.id.localeCompare(b.id);
     });
-    const currentTower = occupied.indexOf(towerMembers);
     ordered[0].towerOverrides.set(next, currentTower);
     ordered[1].towerOverrides.set(next, 1 - currentTower);
   }
