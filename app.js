@@ -83,7 +83,7 @@ const SPREAD_METHODS = {
   },
   ktdn: {
     name: "KTDN式",
-    description: "初回はペア相手で塔を判断し、4回目の円扇判断だけ遠隔左・近接右を使います。以降は前の塔基準で、8回目は左が1番・右が2番です。",
+    description: "初回はペア相手で塔を判断し、4回目の円扇判断だけ遠隔左・近接右を使います。以降は前の塔基準で、8回目は左塔がstop1・bind1、右塔がstop2・bind2です。",
   },
   piren: {
     name: "ぴれん式",
