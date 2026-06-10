@@ -85,6 +85,10 @@ const SPREAD_METHODS = {
     name: "KTDN式",
     description: "初回はペア相手で塔を判断し、4回目の円扇判断だけ遠隔左・近接右を使います。2回目以降は、連続して塔を踏む場合は基本的に前回いた塔をそのまま踏み、同じ塔内で同予兆が重なった場合のみ南側の人が次の塔踏みで反対塔へ移動します。8回目は左塔がstop1・bind1、右塔がstop2・bind2です。",
   },
+  ktdnPiren: {
+    name: "KTDNぴれん式",
+    description: "優先度判断はKTDN式のまま、立ち位置だけぴれん式の座標を使います。",
+  },
   piren: {
     name: "ぴれん式",
     description: "図を基準に、奇数回は塔周辺の縦配置、偶数回は左右対称の上下配置で処理します。",
@@ -386,6 +390,14 @@ function ktdnInitialShareTower(player) {
   return null;
 }
 
+function usesKtdnPriority(spread) {
+  return spread === "ktdn" || spread === "ktdnPiren";
+}
+
+function usesPirenLayout(spread) {
+  return spread === "piren" || spread === "ktdnPiren";
+}
+
 function ktTowerAssignment(mark, odd, tower) {
   if (odd) {
     if (mark === "fan") {
@@ -528,7 +540,7 @@ function markSide(player, round, spread = state.spread || "kt") {
   const peers = state.players
     .filter((member) => member.group === info.group && markForRound(member, round) === markForRound(player, round))
     .sort((a, b) => {
-      if (spread === "ktdn" && round === 4 && info.group === "B") {
+      if (usesKtdnPriority(spread) && round === 4 && info.group === "B") {
         const bucketDiff = ktdnRound4Priority(a) - ktdnRound4Priority(b);
         if (bucketDiff !== 0) return bucketDiff;
       } else {
@@ -541,15 +553,16 @@ function markSide(player, round, spread = state.spread || "kt") {
   return peers.indexOf(player);
 }
 
-function ktAssignmentFor(player, round, spread = state.spread || "kt") {
+function ktdnAssignmentFor(player, round, spread = state.spread || "kt") {
   const info = towerInfo(round);
   if (player.group !== info.group) return null;
   const mark = markForRound(player, round);
+  const assignTower = usesPirenLayout(spread) ? pirenTowerAssignment : ktTowerAssignment;
   if (info.odd) {
-    if (mark === "share" && spread === "ktdn" && round === 1) {
+    if (mark === "share" && usesKtdnPriority(spread) && round === 1) {
       const tower = ktdnInitialShareTower(player);
       if (tower !== null) {
-        return ktTowerAssignment(mark, true, applyTowerOverride(player, round, tower));
+        return assignTower(mark, true, applyTowerOverride(player, round, tower));
       }
     }
     const defaultTower = mark === "fan"
@@ -557,10 +570,10 @@ function ktAssignmentFor(player, round, spread = state.spread || "kt") {
       : mark === "circle"
         ? 1
         : markSide(player, round, spread);
-    return ktTowerAssignment(mark, true, applyTowerOverride(player, round, defaultTower));
+    return assignTower(mark, true, applyTowerOverride(player, round, defaultTower));
   }
   const tower = applyTowerOverride(player, round, markSide(player, round, spread));
-  return ktTowerAssignment(mark, false, tower);
+  return assignTower(mark, false, tower);
 }
 
 function pirenAssignmentFor(player, round, spread = state.spread || "kt") {
@@ -580,7 +593,8 @@ function pirenAssignmentFor(player, round, spread = state.spread || "kt") {
 
 function assignmentFor(player, round, spread = state.spread || "kt") {
   if (spread === "piren") return pirenAssignmentFor(player, round, spread);
-  return ktAssignmentFor(player, round, spread);
+  if (usesKtdnPriority(spread)) return ktdnAssignmentFor(player, round, spread);
+  return ktdnAssignmentFor(player, round, spread);
 }
 
 function targetMarkerFor(player) {
@@ -606,7 +620,7 @@ function targetMarkerFor(player) {
 
 function supportPosition(player, round, spread = state.spread || "kt") {
   const info = towerInfo(round);
-  if (spread === "piren") {
+  if (usesPirenLayout(spread)) {
     const positions = info.odd
       ? {
           tank: [320, 430],
@@ -812,7 +826,7 @@ function resolveTower(round) {
     fail(`${round}回目：${hazardFailure}`);
     return;
   }
-  if (state.spread === "ktdn") recordKtdnTowerPriority(occupied, round);
+  if (usesKtdnPriority(state.spread)) recordKtdnTowerPriority(occupied, round);
   for (const member of active) {
     member.stacks -= 1;
     member.lastSoaked = round;

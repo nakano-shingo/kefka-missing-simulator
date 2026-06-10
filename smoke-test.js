@@ -193,7 +193,7 @@ async function run() {
         spellEffects: state.spellEffects,
         time: state.time,
       };
-      for (const spread of ["kt", "ktdn", "piren"]) {
+      for (const spread of ["kt", "ktdn", "ktdnPiren", "piren"]) {
         for (let attempt = 0; attempt < 80; attempt += 1) {
           const strategy = attempt % 2 ? "yarn" : "lean";
           state.players = createPlayers(strategy);
@@ -247,13 +247,13 @@ async function run() {
       selectStrategy("yarn");
       const afterStrategy = UI.roleSelection.classList.contains("hidden");
       const spreadAfterStrategy = UI.spreadSelection.classList.contains("hidden");
-      selectSpread("ktdn");
+      selectSpread("ktdnPiren");
       const afterSpread = UI.roleSelection.classList.contains("hidden");
       const pair = pairIdFor("MT", "yarn");
       return {
         ok: before && spreadBefore && afterStrategy && !spreadAfterStrategy && !afterSpread &&
-          selectedStrategy === "yarn" && selectedSpread === "ktdn" && pair === "H1" &&
-          UI.strategyName.textContent.includes("ヤーン式") && UI.strategyName.textContent.includes("KTDN式"),
+          selectedStrategy === "yarn" && selectedSpread === "ktdnPiren" && pair === "H1" &&
+          UI.strategyName.textContent.includes("ヤーン式") && UI.strategyName.textContent.includes("KTDNぴれん式"),
         before,
         spreadBefore,
         afterStrategy,
@@ -329,6 +329,34 @@ async function run() {
   const ktdnInitialPair = JSON.parse(ktdnInitialPairResult.result.value);
   if (!ktdnInitialPair.ok) {
     throw new Error(`Invalid KTDN opening pair handling: ${JSON.stringify(ktdnInitialPair)}`);
+  }
+  const ktdnPirenInitialPairResult = await send("Runtime.evaluate", {
+    expression: `JSON.stringify((() => {
+      const originalPlayers = state.players;
+      const originalSpread = state.spread;
+      state.spread = "ktdnPiren";
+      state.players = [
+        { id: "MT", group: "A", marks: { 1: "share" }, role: { category: "tank" }, towerOverrides: new Map() },
+        { id: "H1", group: "B", marks: { 4: "circle" }, role: { category: "healer" }, towerOverrides: new Map() },
+        { id: "D1", group: "A", marks: { 1: "share" }, role: { category: "melee" }, towerOverrides: new Map() },
+        { id: "D3", group: "B", marks: { 4: "fan" }, role: { category: "ranged" }, towerOverrides: new Map() },
+      ];
+      const mtAssignment = assignmentFor(state.players[0], 1, "ktdnPiren");
+      const d1Assignment = assignmentFor(state.players[2], 1, "ktdnPiren");
+      state.players = originalPlayers;
+      state.spread = originalSpread;
+      return {
+        ok: mtAssignment?.tower === 1 && d1Assignment?.tower === 0 &&
+          mtAssignment?.name === "塔2・縦頭割り" && d1Assignment?.name === "塔1・縦頭割り",
+        mtAssignment,
+        d1Assignment,
+      };
+    })())`,
+    returnByValue: true,
+  });
+  const ktdnPirenInitialPair = JSON.parse(ktdnPirenInitialPairResult.result.value);
+  if (!ktdnPirenInitialPair.ok) {
+    throw new Error(`Invalid KTDNぴれん opening pair handling: ${JSON.stringify(ktdnPirenInitialPair)}`);
   }
   const ktdnRound4InitialPriorityResult = await send("Runtime.evaluate", {
     expression: `JSON.stringify((() => {
@@ -534,7 +562,7 @@ async function run() {
           ranged,
         };
       };
-      const spreads = ["kt", "ktdn", "piren"];
+      const spreads = ["kt", "ktdn", "ktdnPiren", "piren"];
       const results = Object.fromEntries(spreads.map((spread) => [spread, verifySpread(spread)]));
       return {
         ok: spreads.every((spread) => results[spread].ok),
