@@ -321,9 +321,13 @@ function resetSelection() {
 }
 
 function pairIdFor(playerId, strategy) {
-  const pairs = strategy === "yarn" ? YARN_PAIRS : PAIRS;
+  const pairs = pairGroupsFor(strategy);
   const pair = pairs.find((ids) => ids.includes(playerId));
   return pair?.find((id) => id !== playerId) || "—";
+}
+
+function pairGroupsFor(strategy) {
+  return strategy === "yarn" ? YARN_PAIRS : PAIRS;
 }
 
 function startGame(playerId, strategy = "lean", spread = "kt") {
